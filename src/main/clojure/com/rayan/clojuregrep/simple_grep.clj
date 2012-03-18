@@ -9,7 +9,7 @@
 (defn matches-line [line expression]
   (not (nil? (re-find (re-pattern expression) line))))
 
-
+(def out-atom (atom []))
 (defn read-lines-range [file select-line-func start-byte end-byte]
   "Returns a lazy sequence of lines from file between start-byte and end-byte."
   (let [reader (-> (doto (FileInputStream. file)
@@ -21,10 +21,12 @@
               (lazy-seq
                 (if-let [line (and (pos? remaining) (.readLine reader))]
                   (if (select-line-func line)
-                    (cons line (gobble-lines (- remaining (inc (.length line)))))
+                    (do
+                      (swap! out-atom #(cons % line))
+                      (cons line (gobble-lines (- remaining (inc (.length line))))))
                     (gobble-lines (- remaining (inc (.length line)))))
                   (.close reader))))]
-      (gobble-lines (- end-byte start-byte)))))
+      (gobble-lines (- end-byte start-byte)))))2
 (defn chunk-file
   "Partitions a file into n line-aligned chunks.  Returns a list of start and
   end byte offset pairs."
@@ -72,11 +74,15 @@
     (func)
     (- (System/currentTimeMillis) start)))
 (write-file "something.txt")
-(println (for [i (range 10)] (measure-time #(doall (quick-and-dirty-grep2 "something.txt" "Clojure")))))
+(println (for [i (range 1)] (measure-time #(doall (quick-and-dirty-grep2 "something.txt" "Clojure")))))
 ;(println (quick-and-dirty-grep2 "something.txt" "grep"))
 
-(println (= (quick-and-dirty-grep2 "something.txt" "Clojure") (flatten (grep-improved "something.txt" "Clojure"))))
+(println (= (count (quick-and-dirty-grep2 "something.txt" "Clojure")) (count @out-atom)))
 ;(println (grep-improved "something.txt" "grep"))
-(println (for [i (range 10)] (measure-time #(doall (grep-improved "something.txt" "Clojure")))))
+(println (for [i (range 1)] (measure-time #(doall (grep-improved "something.txt" "Clojure")))))
 (shutdown-agents)
 ;(println s)
+;output:
+;(492)
+;true
+;(29)
