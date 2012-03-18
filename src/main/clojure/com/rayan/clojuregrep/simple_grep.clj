@@ -18,15 +18,16 @@
     (InputStreamReader. "US-ASCII")
     (BufferedReader.))]
     (letfn [(gobble-lines [remaining]
-              (lazy-seq
-                (if-let [line (and (pos? remaining) (.readLine reader))]
-                  (if (select-line-func line)
+              (if (pos? remaining)
+                (let [line (.readLine reader)]
+                  (if (not (nil? line))
                     (do
-                      (swap! out-atom #(cons % line))
-                      (cons line (gobble-lines (- remaining (inc (.length line))))))
-                    (gobble-lines (- remaining (inc (.length line)))))
-                  (.close reader))))]
-      (gobble-lines (- end-byte start-byte)))))2
+                      (if (select-line-func line)
+                        (swap! out-atom #(conj % line)))
+                      (recur (- remaining (inc (.length line)))))))))]
+      (do
+        (gobble-lines (- end-byte start-byte))
+        (.close reader)))))
 (defn chunk-file
   "Partitions a file into n line-aligned chunks.  Returns a list of start and
   end byte offset pairs."
@@ -61,7 +62,11 @@
 (defn grep-improved [file-name expression]
   "Improved grep"
   (let [chunked-bytes (chunk-file file-name 10)]
-    (let [grep-funs (for [chunk chunked-bytes] #(read-lines-range file-name (fn [l] (matches-line l expression)) (first chunk) (last chunk)))]
+    (let [grep-funs (for [chunk chunked-bytes]
+      #(read-lines-range
+         file-name
+         (fn [l] (matches-line l expression))
+         (first chunk) (last chunk)))]
       (apply pcalls grep-funs))))
 
 (defn write-file [file-name]
@@ -73,13 +78,19 @@
   (let [start (System/currentTimeMillis)]
     (func)
     (- (System/currentTimeMillis) start)))
-(write-file "something.txt")
-(println (for [i (range 1)] (measure-time #(doall (quick-and-dirty-grep2 "something.txt" "Clojure")))))
+;(write-file "something.txt")
+(def file-name "simple_grep.clj")
+(def search "grep")
+(println (for [i (range 1)] (measure-time #(doall (quick-and-dirty-grep2 file-name search)))))
 ;(println (quick-and-dirty-grep2 "something.txt" "grep"))
 
-(println (= (count (quick-and-dirty-grep2 "something.txt" "Clojure")) (count @out-atom)))
+;(println (= (count (quick-and-dirty-grep2 "something.txt" "Clojure")) (count @out-atom)))
 ;(println (grep-improved "something.txt" "grep"))
-(println (for [i (range 1)] (measure-time #(doall (grep-improved "something.txt" "Clojure")))))
+;(println (for [i (range 1)] (measure-time #(doall (grep-improved "something.txt" "Clojure")))))
+(println (measure-time #(doall (grep-improved file-name search))))
+;(println (interpose "\n" out))
+(println (interpose "\n" @out-atom))
+(println (count @out-atom))
 (shutdown-agents)
 ;(println s)
 ;output:
