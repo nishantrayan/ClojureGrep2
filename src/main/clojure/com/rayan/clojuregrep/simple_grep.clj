@@ -51,28 +51,32 @@
         (conj chunked-lines rem-lines)
         (let [first-chunk (take n rem-lines)]
           (recur (drop n rem-lines) (conj chunked-lines first-chunk)))))))
-
+;(defn my-flat [sq]
+;  (loop [f [] rem-sq sq]
+;    (if (zero? (count sq))
+;      f
+;      (recur (concat f (first sq)))))
 (defn grep-improved [file-name expression]
   "Improved grep"
-  (let [chunked-bytes (chunk-file file-name 5)]
+  (let [chunked-bytes (chunk-file file-name 10)]
     (let [grep-funs (for [chunk chunked-bytes] #(read-lines-range file-name (fn [l] (matches-line l expression)) (first chunk) (last chunk)))]
-      (flatten (apply pcalls grep-funs)))))
+      (apply pcalls grep-funs))))
 
 (defn write-file [file-name]
   (with-open [w (writer file-name)]
-    (doseq [line (interleave (repeat 10000 "grep this line") (repeat 10000 "don't look at this line"))]
+    (doseq [line (interleave (repeat 100000 "grep this line") (repeat 100000 "don't look at this line"))]
       (.write w line)
       (.write w "\n"))))
 (defn measure-time [func]
   (let [start (System/currentTimeMillis)]
     (func)
     (- (System/currentTimeMillis) start)))
-;(write-file "something.txt")
-(println (for [i (range 10)] (measure-time #(doall (quick-and-dirty-grep2 "something.txt" "grep")))))
+(write-file "something.txt")
+(println (for [i (range 10)] (measure-time #(doall (quick-and-dirty-grep2 "something.txt" "Clojure")))))
 ;(println (quick-and-dirty-grep2 "something.txt" "grep"))
 
-(println (= (quick-and-dirty-grep2 "something.txt" "grep") (grep-improved "something.txt" "grep")))
+(println (= (quick-and-dirty-grep2 "something.txt" "Clojure") (flatten (grep-improved "something.txt" "Clojure"))))
 ;(println (grep-improved "something.txt" "grep"))
-(println (for [i (range 10)] (measure-time #(doall (grep-improved "something.txt" "grep")))))
+(println (for [i (range 10)] (measure-time #(doall (grep-improved "something.txt" "Clojure")))))
 (shutdown-agents)
 ;(println s)
