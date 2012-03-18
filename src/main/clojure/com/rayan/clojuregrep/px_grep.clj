@@ -38,12 +38,20 @@
   (let [files-seq (filter #(not (.isDirectory %)) (tree-seq #(.isDirectory %) #(.listFiles %) (File. directory)))
         files-chunks (partition-all (long (/ (count files-seq) nthreads)) files-seq)
         grep-funcs (for [files-chunk files-chunks] #(grep-files files-chunk expression))]
-    (println files-seq)
     (doall (apply pcalls grep-funcs))))
 
 ;(grep-files ["sample_file.txt.gz"] "Clojure")
-(grep-directory "G:/grep_dir" "social" 2)
-(.flush *out*)
+(def dir (nth *command-line-args* 0))
+(def expr (nth *command-line-args* 1))
+(def nthreads (Integer/parseInt (nth *command-line-args* 2)))
+;(println dir expr nthreads)
+(defn measure-time [func]
+  (let [start (System/currentTimeMillis)]
+    (func)
+    (- (System/currentTimeMillis) start)))
+(def t (measure-time #(grep-directory dir expr nthreads)))
+(log (str "it took " t " ms\n"))
+(await)
 (shutdown-agents)
 
 
