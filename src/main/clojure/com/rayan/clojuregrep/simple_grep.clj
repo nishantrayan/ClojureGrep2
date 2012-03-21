@@ -3,17 +3,23 @@
   (:use [clojure.java.io :only [reader writer]])
   (:gen-class true))
 
+(def wtr (agent *out*))
+(defn log [msg]
+  (letfn [(write [out msg]
+            (.write out msg)
+            out)]
+    (send-off wtr write msg)))
+
 (defn grep-lines [lines expression]
   (filter #(re-find (re-pattern expression) %) lines))
 
 (defn matches-line [line expression]
   (not (nil? (re-find (re-pattern expression) line))))
 
-(def out-atom (atom []))
 (defn read-lines-range [file select-line-func start-byte end-byte]
   "Returns a lazy sequence of lines from file between start-byte and end-byte."
-  (let [reader (-> (doto (FileInputStream. file)
-                     (.skip start-byte))
+  (with-open [reader (-> (doto (FileInputStream. file)
+                           (.skip start-byte))
     (BufferedInputStream. 131072)
     (InputStreamReader. "US-ASCII")
     (BufferedReader.))]
@@ -23,11 +29,9 @@
                   (if (not (nil? line))
                     (do
                       (if (select-line-func line)
-                        (swap! out-atom #(conj % line)))
+                        (do (log (str line "\n"))))
                       (recur (- remaining (inc (.length line)))))))))]
-      (do
-        (gobble-lines (- end-byte start-byte))
-        (.close reader)))))
+      (gobble-lines (- end-byte start-byte)))))
 (defn chunk-file
   "Partitions a file into n line-aligned chunks.  Returns a list of start and
   end byte offset pairs."
@@ -54,14 +58,10 @@
         (conj chunked-lines rem-lines)
         (let [first-chunk (take n rem-lines)]
           (recur (drop n rem-lines) (conj chunked-lines first-chunk)))))))
-;(defn my-flat [sq]
-;  (loop [f [] rem-sq sq]
-;    (if (zero? (count sq))
-;      f
-;      (recur (concat f (first sq)))))
+
 (defn grep-improved [file-name expression]
   "Improved grep"
-  (let [chunked-bytes (chunk-file file-name 10)]
+  (let [chunked-bytes (chunk-file file-name 20)]
     (let [grep-funs (for [chunk chunked-bytes]
       #(read-lines-range
          file-name
@@ -71,7 +71,7 @@
 
 (defn write-file [file-name]
   (with-open [w (writer file-name)]
-    (doseq [line (interleave (repeat 100000 "grep this line") (repeat 100000 "don't look at this line"))]
+    (doseq [line (interleave (repeat 1000000 "grep this line") (repeat 1000000 "don't look at this line"))]
       (.write w line)
       (.write w "\n"))))
 (defn measure-time [func]
@@ -79,21 +79,11 @@
     (func)
     (- (System/currentTimeMillis) start)))
 ;(write-file "something.txt")
-(def file-name "simple_grep.clj")
+(def file-name "something.txt")
 (def search "grep")
-(println (for [i (range 1)] (measure-time #(doall (quick-and-dirty-grep2 file-name search)))))
-;(println (quick-and-dirty-grep2 "something.txt" "grep"))
-
-;(println (= (count (quick-and-dirty-grep2 "something.txt" "Clojure")) (count @out-atom)))
-;(println (grep-improved "something.txt" "grep"))
-;(println (for [i (range 1)] (measure-time #(doall (grep-improved "something.txt" "Clojure")))))
-(println (measure-time #(doall (grep-improved file-name search))))
-;(println (interpose "\n" out))
-(println (interpose "\n" @out-atom))
-(println (count @out-atom))
+;(println (for [i (range 1)] (measure-time #(doall (quick-and-dirty-grep2 file-name search)))))
+(log (str (measure-time #(doall (grep-improved file-name search))) "\n"))
+(await wtr)
 (shutdown-agents)
-;(println s)
-;output:
-;(492)
-;true
 ;(29)
+
